@@ -1,88 +1,163 @@
-from datetime import datetime
-import json
-import requests
-from django.http import HttpResponseBadRequest, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from .models import copier_users, copier_accounts
+from django.http import HttpResponse
+from myapp.db import db
+from myapp.config import new_order, close_order, delete_order, modify_order, sub_order
 
-
-@csrf_exempt
 def client(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
+    if 'status' in request.GET: 
+        status = int(request.GET.get('status'))
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'client' in request.GET: 
+        client = request.GET.get('client')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'broker' in request.GET: 
+        broker = request.GET.get('broker')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'account_no' in request.GET: 
+        account_no = request.GET.get('account_no')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'computer' in request.GET: 
+        computer = request.GET.get('computer')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'ip' in request.GET: 
+        ip = request.GET.get('ip')[:50]
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'prd_id' in request.GET: 
+        prd_id = request.GET.get('prd_id')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'ticket' in request.GET: 
+        ticket = request.GET.get('ticket')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    if 'delay' in request.GET: 
+        delay = request.GET.get('delay')
+    else: 
+        return HttpResponse('-1<br>invalid parameter format')
+    
+    db_obj = db()
+    error = ''
+    
+    if status == new_order:
+        if 'symbol' in request.GET: 
+            symbol = request.GET.get('symbol')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'type' in request.GET: 
+            type = request.GET.get('type')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'lot' in request.GET: 
+            lot = request.GET.get('lot')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'balance' in request.GET: 
+            balance = request.GET.get('balance')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'equity' in request.GET: 
+            equity = request.GET.get('equity')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'open_time' in request.GET: 
+            open_time = request.GET.get('open_time')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'open_price' in request.GET: 
+            open_price = request.GET.get('open_price')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'sl' in request.GET: 
+            sl = request.GET.get('sl')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'tp' in request.GET: 
+            tp = request.GET.get('tp')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
         
-        # Get user information
-        user = copier_users.objects.get(UserID=data['userId'])
-        account = copier_accounts.objects.get(id=data['accountId'], UserID=user.id)
-        
-        # Create order data
-        order_data = {
-            'orderId': data['orderId'],
-            'orderType': data['orderType'],
-            'symbol': data['symbol'],
-            'lots': data['lots'],
-            'openPrice': data['openPrice'],
-            'stopLoss': data['stopLoss'],
-            'takeProfit': data['takeProfit'],
-            'closePrice': data['closePrice'],
-            'swap': data['swap'],
-            'profit': data['profit'],
-            'commission': data['commission'],
-            'comment': data['comment'],
-            'magicNumber': data['magicNumber'],
-            'openTime': int(data['openTime']),
-            'closeTime': int(data['closeTime']),
-            'isClosed': data['isClosed'],
-            'isDeleted': data['isDeleted'],
-        }
-        
-        # Send order data to provider
-        url = f'https://api.provider.com/orders?token={account.Token}'
-        response = requests.post(url, json={'token': account.Token, 'orders': [order_data]})
-        
-        # Process response from provider
-        if response.status_code == 200:
-            # Update order in database
-            try:
-                existing_order = copier_orders.objects.get(OrderID=data['orderId'], AccountID=account.id)
-                existing_order.SL = data['stopLoss']
-                existing_order.TP = data['takeProfit']
-                existing_order.IsClosed = data['isClosed']
-                existing_order.IsDeleted = data['isDeleted']
-                existing_order.IsUpdated = 1
-                existing_order.IsSynced = 1
-                existing_order.ModifiedDate = datetime.now()
-                existing_order.save()
-            except copier_orders.DoesNotExist:
-                # Create new order in database
-                new_order = copier_orders(
-                    OrderID=data['orderId'],
-                    OrderType=data['orderType'],
-                    Symbol=data['symbol'],
-                    Lots=data['lots'],
-                    OpenPrice=data['openPrice'],
-                    SL=data['stopLoss'],
-                    TP=data['takeProfit'],
-                    ClosePrice=data['closePrice'],
-                    Swap=data['swap'],
-                    Profit=data['profit'],
-                    Commission=data['commission'],
-                    Comment=data['comment'],
-                    MagicNumber=data['magicNumber'],
-                    OrderTime=datetime.fromtimestamp(data['openTime']),
-                    CloseTime=datetime.fromtimestamp(data['closeTime']),
-                    AccountID=account.id,
-                    IsClosed=data['isClosed'],
-                    IsDeleted=data['isDeleted'],
-                    IsUpdated=1,
-                    IsSynced=1,
-                    CreatedDate=datetime.now(),
-                    ModifiedDate=datetime.now()
-                )
-                new_order.save()
-            
-            return JsonResponse({'status': 'OK'})
+        id = db_obj.add_client_deal(client, broker, account_no, prd_id, ticket, symbol, type, lot,
+                                    balance, equity, open_time, open_price, sl, tp, ip, computer, delay, error)
+        if id < 0:
+            return HttpResponse(str(id) + '<br>' + error)
         else:
-            return JsonResponse({'error': 'Failed to send order data to provider'})
-    else:
-        return HttpResponseBadRequest()
+            return HttpResponse(str(id) + '<br>succeeded')
+        
+    elif status == close_order:
+        if 'close_price' in request.GET: 
+            close_price = request.GET.get('close_price')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'profit' in request.GET: 
+            profit = request.GET.get('profit')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'commission' in request.GET: 
+            commission = request.GET.get('commission')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'swap' in request.GET: 
+            swap = request.GET.get('swap')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        
+        id = db_obj.close_client_deal(client, broker, account_no, prd_id, ticket, close_price, profit,
+                                      commission, swap, ip, computer, delay, error)
+        if id < 0:
+            return HttpResponse(str(id) + '<br>' + error)
+        else:
+            return HttpResponse(str(id) + '<br>succeeded')
+        
+    elif status == delete_order:
+        id = db_obj.delete_client_deal(client, broker, account_no, prd_id, ticket, ip, computer, delay, error)
+        if id < 0:
+            return HttpResponse(str(id) + '<br>' + error)
+        else:
+            return HttpResponse(str(id) + '<br>succeeded')
+        
+    elif status == modify_order:
+        if 'open_price' in request.GET: 
+            open_price = request.GET.get('open_price')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'sl' in request.GET: 
+            sl = request.GET.get('sl')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'tp' in request.GET: 
+            tp = request.GET.get('tp')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        
+        id = db_obj.modify_client_deal(client, broker, account_no, prd_id, ticket, open_price, sl, tp,
+                                       ip, computer, delay, error)
+        if id < 0:
+            return HttpResponse(str(id) + '<br>' + error)
+        else:
+            return HttpResponse(str(id) + '<br>succeeded')
+        
+    elif status == sub_order:
+        if 'old_ticket' in request.GET: 
+            old_ticket = request.GET.get('old_ticket')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'lot' in request.GET: 
+            lot = request.GET.get('lot')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        if 'old_lot' in request.GET: 
+            old_lot = request.GET.get('old_lot')
+        else: 
+            return HttpResponse('-1<br>invalid parameter format')
+        
+        id = db_obj.suborder_client_deal(client, broker, account_no, prd_id, old_ticket, ticket,
+                                         old_lot, lot, ip, computer, delay, error)
+        if id < 0:
+            return HttpResponse(str(id) + '<br>' + error)
+        else:
+            return HttpResponse(str(id) + '<br>succeeded')
